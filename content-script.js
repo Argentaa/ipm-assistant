@@ -1,6 +1,6 @@
 // ============================================================
-// IPM Overlay Assistant — Content Script v9
-// Clica no input de maximizar via DOM (seletor testado manualmente)
+// IPM Overlay Assistant — Content Script v10
+// Usa o ID EXATO que SEMPRE é o mesmo + main world injection
 // ============================================================
 
 (function () {
@@ -8,13 +8,72 @@
 
   if (!location.hostname.includes('atende.net')) return;
 
-  console.log('[IPM] 🚀 Content Script v9');
+  console.log('[IPM] 🚀 Content Script v10');
 
-  let maximizePending = false;
+  // ─── SELETOR EXATO que funciona no console ───
+  const SELECTOR = "#janela_16028_102_1 > div.area_total_janela > header > aside > span:nth-child(2) > input";
 
-  // ============================================================
-  // 1. TRIGGER
-  // ============================================================
+  // ─── Injeta script no main world (mesmo contexto do console) ───
+  function injectMainWorld(code) {
+    const s = document.createElement('script');
+    s.textContent = `(${code})();`;
+    document.documentElement.appendChild(s);
+    s.remove();
+  }
+
+  // ─── Injeta o agente de maximize na página ───
+  function injectMaximizeAgent() {
+    injectMainWorld(function() {
+      if (window.__IPM_maximizer) return;
+      window.__IPM_maximizer = true;
+
+      const SEL = "#janela_16028_102_1 > div.area_total_janela > header > aside > span:nth-child(2) > input";
+      let pending = false;
+
+      window.addEventListener('message', (e) => {
+        if (e.data?.type === 'MAXIMIZE_NOW') {
+          pending = true;
+          let tries = 0;
+          const iv = setInterval(() => {
+            tries++;
+            const btn = document.querySelector(SEL);
+            if (btn && btn.offsetWidth > 0) {
+              btn.click();
+              console.log('[IPM] ✅ Maximizado! (main world)');
+              pending = false;
+              clearInterval(iv);
+            } else if (tries >= 30) {
+              clearInterval(iv);
+              console.warn('[IPM] ⚠️ Botão não encontrado após', tries, 'tentativas');
+            }
+          }, 400);
+        }
+      });
+
+      // MutationObserver
+      const obs = new MutationObserver((mutations) => {
+        if (!pending) return;
+        for (const m of mutations) {
+          for (const n of m.addedNodes) {
+            if (n.nodeType === 1 && (n.id?.startsWith?.('janela_') || n.querySelector?.('[id^="janela_"]'))) {
+              console.log('[IPM] 🔍 Janela detectada!');
+              const btn = document.querySelector(SEL);
+              if (btn && btn.offsetWidth > 0) {
+                btn.click();
+                console.log('[IPM] ✅ Maximizado na detecção!');
+                pending = false;
+                return;
+              }
+            }
+          }
+        }
+      });
+      if (document.body) obs.observe(document.body, { childList: true, subtree: true });
+      console.log('[IPM] 👀 Main world pronto!');
+    });
+  }
+
+  // ─── Detecta clique ───
   document.addEventListener('click', (event) => {
     try {
       const trigger = event.target.closest(
@@ -23,91 +82,15 @@
       );
       if (!trigger) return;
       console.log('[IPM] ⚡ Novo Processo clicado!');
-      maximizePending = true;
+      window.postMessage({ type: 'MAXIMIZE_NOW' }, '*');
     } catch (e) {}
   }, true);
 
-  // ============================================================
-  // 2. MAXIMIZA — clica no input DENTRO do span
-  //    Seletor CONFIRMADO manualmente pelo usuário:
-  //    document.querySelector("#janela_16028_102_1 > div.area_total_janela > header > aside > span:nth-child(2) > input").click()
-  //    Adaptado para [id^="janela_"] em vez do ID fixo
-  // ============================================================
-  const MAXIMIZE_SELECTOR = 'div.area_total_janela > header > aside > span:nth-child(2) > input';
-
-  function tryMaximize() {
-    if (!maximizePending) return false;
-
-    // Busca o input de maximizar DIRETAMENTE (sem depender do ID da janela)
-    // Seletor confirmado: div.area_total_janela header aside span:nth-child(2) input
-    const maximizeInput = document.querySelector(
-      'div.area_total_janela header aside span:nth-child(2) input'
-    );
-
-    if (!maximizeInput) {
-      console.log('[IPM] ⏳ Input de maximizar não encontrado...');
-      return false;
-    }
-
-    // Verifica se está visível
-    if (maximizeInput.offsetWidth === 0 || maximizeInput.offsetHeight === 0) {
-      console.log('[IPM] ⏳ Input visível? offsetWidth=' + maximizeInput.offsetWidth);
-      return false;
-    }
-
-    // CLICA!
-    maximizeInput.click();
-    console.log('[IPM] ✅ Janela maximizada!');
-    maximizePending = false;
-    return true;
-  }
-
-  // ============================================================
-  // 3. MUTATION OBSERVER
-  // ============================================================
-  let attempts = 0;
-  const MAX_ATTEMPTS = 30;
-
-  function startMaximizeLoop() {
-    if (!maximizePending) return;
-    attempts = 0;
-
-    // Tenta imediatamente
-    if (tryMaximize()) return;
-
-    // Retenta até achar o elemento
-    const iv = setInterval(() => {
-      attempts++;
-      if (tryMaximize() || attempts >= MAX_ATTEMPTS) {
-        clearInterval(iv);
-        if (attempts >= MAX_ATTEMPTS) {
-          console.warn('[IPM] ⚠️ Esgotadas tentativas');
-        }
-      }
-    }, 400);
-  }
-
-  const observer = new MutationObserver((mutations) => {
-    if (!maximizePending) return;
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node.nodeType !== Node.ELEMENT_NODE) continue;
-        if (node.id?.startsWith?.('janela_') || node.querySelector?.('[id^="janela_"]')) {
-          console.log('[IPM] 🔍 Janela detectada!');
-          startMaximizeLoop();
-          return;
-        }
-      }
-    }
-  });
-
-  if (document.body) {
-    observer.observe(document.body, { childList: true, subtree: true });
-    console.log('[IPM] 👀 Pronto!');
+  // ─── Init ───
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectMaximizeAgent);
   } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      observer.observe(document.body, { childList: true, subtree: true });
-      console.log('[IPM] 👀 Pronto!');
-    });
+    injectMaximizeAgent();
   }
+  console.log('[IPM] ✅ Agente injetado!');
 })();
