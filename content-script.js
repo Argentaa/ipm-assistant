@@ -79,6 +79,10 @@
 
       // Tenta vários seletores em ordem
       const selectors = [
+        // O input DENTRO do span é o botão verdadeiro
+        'div.area_total_janela header aside span:nth-child(2) input',
+        'header aside span:nth-child(2) input',
+        'header aside input[type="button"], header aside input[type="submit"]',
         'div.area_total_janela header aside span:nth-child(2)',
         'header aside span:nth-child(2)',
         'header aside span',
@@ -86,7 +90,6 @@
         '[class*="maximizar"], [class*="maximize"]',
         'i.fa-expand, i.fa-window-maximize',
         '[title*="maximizar" i], [title*="maximize" i]',
-        // XPath fallback: qualquer span que seja filho do header
       ];
 
       for (const sel of selectors) {
