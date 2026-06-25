@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "IPM Overlay Assistant",
+  "version": "1.0.0",
+  "description": "Overlay inteligente e automação para IPM Sistemas - maximiza janelas automaticamente",
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.atende.net/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "IPM Assistant",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.atende.net/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "overlay.html",
+        "overlay.js",
+        "styles/overlay.css"
+      ],
+      "matches": ["*://*.atende.net/*"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

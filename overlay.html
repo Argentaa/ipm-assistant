@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPM Overlay</title>
+  <style>
+    /* ─── Reset completo ─── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      font-size: 14px;
+      color: #1a1a2e;
+      background: #ffffff;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Header ─── */
+    .overlay-header {
+      background: linear-gradient(135deg, #1a73e8, #1557b0);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .overlay-header h1 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .overlay-header .badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    /* ─── Content ─── */
+    .overlay-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ─── Cards ─── */
+    .card {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6c757d;
+      margin-bottom: 8px;
+    }
+
+    .card-value {
+      font-size: 14px;
+      color: #212529;
+      word-break: break-all;
+    }
+
+    /* ─── Status indicators ─── */
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    .status-dot.active {
+      background: #28a745;
+      box-shadow: 0 0 6px rgba(40, 167, 69, 0.5);
+    }
+
+    .status-dot.inactive {
+      background: #dc3545;
+    }
+
+    .status-dot.waiting {
+      background: #ffc107;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ─── Buttons ─── */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex: 1;
+      min-width: 100px;
+    }
+
+    .btn-primary {
+      background: #1a73e8;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #1557b0;
+    }
+
+    .btn-secondary {
+      background: #e9ecef;
+      color: #495057;
+    }
+
+    .btn-secondary:hover {
+      background: #dee2e6;
+    }
+
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #218838;
+    }
+
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #c82333;
+    }
+
+    /* ─── Log ─── */
+    .log-container {
+      background: #1a1a2e;
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .log-entry {
+      color: #adb5bd;
+    }
+
+    .log-entry.info {
+      color: #74c0fc;
+    }
+
+    .log-entry.success {
+      color: #69db7c;
+    }
+
+    .log-entry.warn {
+      color: #ffd43b;
+    }
+
+    .log-entry.error {
+      color: #ff6b6b;
+    }
+
+    /* ─── Placeholder ─── */
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      text-align: center;
+      color: #adb5bd;
+    }
+
+    .placeholder-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .placeholder-text {
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay-header">
+    <h1>IPM Assistant</h1>
+    <span class="badge">Overlay</span>
+  </div>
+
+  <div class="overlay-content" id="app">
+    <div class="placeholder" id="placeholder-view">
+      <div class="placeholder-icon">🧩</div>
+      <div class="placeholder-text">
+        Conectado ao IPM Sistemas.<br>
+        Use os botões abaixo para interagir com a página.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Status da Página</div>
+      <div class="card-value" id="page-url">Carregando...</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ações Rápidas</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-dados">📋 Ler Dados</button>
+        <button class="btn btn-secondary" id="btn-fechar">✕ Fechar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Log</div>
+      <div class="log-container" id="log-container">
+        <div class="log-entry info">▶ Overlay iniciado</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="overlay.js"></script>
+</body>
+</html>
