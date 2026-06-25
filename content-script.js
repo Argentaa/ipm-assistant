@@ -1,6 +1,6 @@
 // ============================================================
-// IPM Overlay Assistant — Content Script v10
-// Usa o ID EXATO que SEMPRE é o mesmo + main world injection
+// IPM Overlay Assistant — Content Script v11
+// Main world injection + delay de 3s para janela carregar
 // ============================================================
 
 (function () {
@@ -8,12 +8,12 @@
 
   if (!location.hostname.includes('atende.net')) return;
 
-  console.log('[IPM] 🚀 Content Script v10');
+  console.log('[IPM] 🚀 v11');
 
   // ─── SELETOR EXATO que funciona no console ───
   const SELECTOR = "#janela_16028_102_1 > div.area_total_janela > header > aside > span:nth-child(2) > input";
 
-  // ─── Injeta script no main world (mesmo contexto do console) ───
+  // ─── Injeta código no main world (mesmo contexto do console) ───
   function injectMainWorld(code) {
     const s = document.createElement('script');
     s.textContent = `(${code})();`;
@@ -21,59 +21,74 @@
     s.remove();
   }
 
-  // ─── Injeta o agente de maximize na página ───
-  function injectMaximizeAgent() {
+  // ─── Código que roda no contexto da página (main world) ───
+  function injectPageAgent() {
     injectMainWorld(function() {
-      if (window.__IPM_maximizer) return;
-      window.__IPM_maximizer = true;
+      if (window.__IPM_v11) return;
+      window.__IPM_v11 = true;
 
       const SEL = "#janela_16028_102_1 > div.area_total_janela > header > aside > span:nth-child(2) > input";
-      let pending = false;
 
+      function maximizar() {
+        try {
+          const btn = document.querySelector(SEL);
+          if (btn && btn.offsetWidth > 0 && btn.offsetHeight > 0) {
+            console.log('[IPM] 🖱️ Clicando no maximize...');
+            btn.click();
+            console.log('[IPM] ✅ Maximizado!');
+            return true;
+          }
+          return false;
+        } catch(e) {
+          console.error('[IPM] ❌', e);
+          return false;
+        }
+      }
+
+      // Escuta comando do content script
       window.addEventListener('message', (e) => {
-        if (e.data?.type === 'MAXIMIZE_NOW') {
-          pending = true;
+        if (e.data?.type !== 'MAXIMIZE') return;
+
+        console.log('[IPM] ⏱️ Aguardando 3s para janela carregar...');
+
+        // Espera 3 segundos ANTES de tentar
+        setTimeout(() => {
+          if (maximizar()) return;
+
+          // Se não achou, tenta por 10s
           let tries = 0;
           const iv = setInterval(() => {
             tries++;
-            const btn = document.querySelector(SEL);
-            if (btn && btn.offsetWidth > 0) {
-              btn.click();
-              console.log('[IPM] ✅ Maximizado! (main world)');
-              pending = false;
+            if (maximizar() || tries >= 20) {
               clearInterval(iv);
-            } else if (tries >= 30) {
-              clearInterval(iv);
-              console.warn('[IPM] ⚠️ Botão não encontrado após', tries, 'tentativas');
+              if (tries >= 20) console.warn('[IPM] ⚠️ Falhou após 20 tentativas');
             }
-          }, 400);
-        }
+          }, 500);
+        }, 3000);
       });
 
-      // MutationObserver
+      // MutationObserver (monitora mas com delay)
       const obs = new MutationObserver((mutations) => {
-        if (!pending) return;
         for (const m of mutations) {
           for (const n of m.addedNodes) {
-            if (n.nodeType === 1 && (n.id?.startsWith?.('janela_') || n.querySelector?.('[id^="janela_"]'))) {
-              console.log('[IPM] 🔍 Janela detectada!');
-              const btn = document.querySelector(SEL);
-              if (btn && btn.offsetWidth > 0) {
-                btn.click();
-                console.log('[IPM] ✅ Maximizado na detecção!');
-                pending = false;
-                return;
-              }
+            if (n.nodeType !== 1) continue;
+            if (n.id?.startsWith?.('janela_') || n.querySelector?.('[id^="janela_"]')) {
+              // Apenas log, a ação vem via postMessage com delay
+              console.log('[IPM] 🔍 Janela detectada no DOM');
+              return;
             }
           }
         }
       });
-      if (document.body) obs.observe(document.body, { childList: true, subtree: true });
-      console.log('[IPM] 👀 Main world pronto!');
+
+      if (document.body) {
+        obs.observe(document.body, { childList: true, subtree: true });
+        console.log('[IPM] 👀 Agente v11 pronto!');
+      }
     });
   }
 
-  // ─── Detecta clique ───
+  // ─── Detecta clique e envia comando com delay ───
   document.addEventListener('click', (event) => {
     try {
       const trigger = event.target.closest(
@@ -81,16 +96,15 @@
         '.div_botao_acao_button.fa-plus'
       );
       if (!trigger) return;
-      console.log('[IPM] ⚡ Novo Processo clicado!');
-      window.postMessage({ type: 'MAXIMIZE_NOW' }, '*');
+      console.log('[IPM] ⚡ Novo Processo clicado! Aguardando 3s...');
+      window.postMessage({ type: 'MAXIMIZE' }, '*');
     } catch (e) {}
   }, true);
 
   // ─── Init ───
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectMaximizeAgent);
+    document.addEventListener('DOMContentLoaded', injectPageAgent);
   } else {
-    injectMaximizeAgent();
+    injectPageAgent();
   }
-  console.log('[IPM] ✅ Agente injetado!');
 })();
