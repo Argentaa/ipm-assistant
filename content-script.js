@@ -1,6 +1,6 @@
 // ============================================================
 // IPM Overlay Assistant — Content Script
-// Maximiza janela interna do IPM via CSS + clique
+// Apenas CSS — NÃO clica em nenhum botão do sistema
 // ============================================================
 
 (function () {
@@ -8,13 +8,13 @@
 
   if (!location.hostname.includes('atende.net')) return;
 
-  console.log('[IPM] 🚀 Content Script v5 iniciado');
+  console.log('[IPM] 🚀 Content Script v6 - CSS only');
 
-  // ============================================================
-  // 1. TRIGGER
-  // ============================================================
   let maximizePending = false;
 
+  // ============================================================
+  // 1. TRIGGER — detecta clique em "Novo Processo"
+  // ============================================================
   document.addEventListener('click', (event) => {
     try {
       const trigger = event.target.closest(
@@ -24,126 +24,90 @@
       if (!trigger) return;
       console.log('[IPM] ⚡ Novo Processo clicado!');
       maximizePending = true;
-      chrome.runtime.sendMessage({ type: 'TRIGGER_CLICKED' }).catch(() => {});
     } catch (e) {}
   }, true);
 
   // ============================================================
-  // 2. MAXIMIZAR — VÁRIAS ESTRATÉGIAS
+  // 2. MAXIMIZA — APENAS CSS, sem clicar em nada
   // ============================================================
-
-  function maximizeJanela(janela) {
-    if (!janela || !janela.offsetParent) return false;
+  function makeFullScreen(janela) {
+    if (!janela || janela.offsetWidth === 0) return false;
 
     const id = janela.id;
-    console.log(`[IPM] 🔧 Maximizando: ${id}`);
+    console.log(`[IPM] 🔧 Aplicando CSS fullscreen em: ${id}`);
 
-    // ─── ESTRATÉGIA 1: CSS DIRETO — forçar tela cheia ───
-    // Pega o container onde as janelas ficam
-    const container = janela.parentElement?.closest('[class*="area">], .area-principal, main, [class*="workspace"]') ||
-                      janela.parentElement;
+    // A área de conteúdo total da janela
+    const areaTotal = janela.querySelector('.area_total_janela');
+    const bodyJanela = janela.querySelector('.conteudo_janela, .area-conteudo, .corpo_janela') || areaTotal;
 
-    // Janela principal (o div da janela em si)
-    const areaTotal = janela.querySelector('.area_total_janela') || janela;
-
-    // Aplica CSS fullscreen no container da janela
-    janela.style.setProperty('position', 'fixed', 'important');
+    // ─── 1. Janela principal (div #janela_XXXXX) ───
+    janela.style.setProperty('position', 'absolute', 'important');
     janela.style.setProperty('top', '0', 'important');
     janela.style.setProperty('left', '0', 'important');
-    janela.style.setProperty('width', '100vw', 'important');
-    janela.style.setProperty('height', '100vh', 'important');
-    janela.style.setProperty('z-index', '99999', 'important');
+    janela.style.setProperty('width', '100%', 'important');
+    janela.style.setProperty('height', '100%', 'important');
+    janela.style.setProperty('z-index', '9999', 'important');
     janela.style.setProperty('margin', '0', 'important');
+    janela.style.setProperty('border', 'none', 'important');
 
-    if (areaTotal !== janela) {
+    // ─── 2. Área total da janela ───
+    if (areaTotal) {
       areaTotal.style.setProperty('width', '100%', 'important');
       areaTotal.style.setProperty('height', '100%', 'important');
     }
 
-    console.log(`[IPM] ✅ CSS position fixed aplicado em ${id}`);
-    return true;
-  }
-
-  function clickMaximizeButton(janela) {
-    if (!janela) return false;
-
-    // Tenta todos os spans/inputs no header aside
-    const aside = janela.querySelector('header aside');
-    if (!aside) {
-      console.log('[IPM] ⚠️ Nenhum <aside> encontrado no header');
-      return false;
-    }
-
-    const inputs = aside.querySelectorAll('input');
-    console.log(`[IPM] 🔎 ${inputs.length} input(s) no header aside:`);
-    inputs.forEach((inp, i) => {
-      console.log(`[IPM]   input ${i}: value="${inp.value}" type="${inp.type}" onclick="${inp.getAttribute('onclick')?.substring(0, 80) || 'nenhum'}"`);
+    // ─── 3. Força a janela a ficar na frente ───
+    const todasJanelas = document.querySelectorAll('[id^="janela_"]');
+    todasJanelas.forEach(j => {
+      if (j.id !== id) {
+        j.style.setProperty('z-index', '1', 'important');
+      }
     });
 
-    // Tenta cada input — se algum funcionar (a janela mudar de tamanho), paramos
-    const rectBefore = janela.getBoundingClientRect();
-
-    for (const inp of inputs) {
-      if (inp.offsetWidth > 0 && inp.offsetHeight > 0) {
-        inp.click();
-        // Pequena pausa pra ver se algo mudou
-      }
-    }
-
-    // Verifica se a janela mudou depois dos cliques
-    // Se não mudou, aplica CSS
-    const rectAfter = janela.getBoundingClientRect();
-    if (rectAfter.width === rectBefore.width && rectAfter.height === rectBefore.height) {
-      console.log('[IPM] ⚠️ Nenhum input alterou o tamanho — aplicando CSS direto');
-      return maximizeJanela(janela);
-    }
-
+    console.log(`[IPM] ✅ CSS aplicado - janela em tela cheia`);
     return true;
   }
 
-  function tryAllStrategies() {
-    const janelas = document.querySelectorAll('[id^="janela_"]');
-    let maximized = false;
-
-    for (const janela of janelas) {
-      if (janela.offsetWidth === 0 && janela.offsetHeight === 0) continue;
-
-      // Tenta clicar nos inputs do header (abordagem original)
-      const result = clickMaximizeButton(janela);
-      if (result) maximized = true;
-    }
-
-    return maximized;
-  }
-
   // ============================================================
-  // 3. MUTATION OBSERVER
+  // 3. MUTATION OBSERVER — detecta janela e maximiza
   // ============================================================
-
   let attempts = 0;
-  const MAX_ATTEMPTS = 15;
+  const MAX_ATTEMPTS = 25; // 12.5 segundos
 
   function startMaximize() {
+    if (!maximizePending) return;
     attempts = 0;
 
     // Tenta imediatamente
-    if (tryAllStrategies()) return;
+    const janelas = document.querySelectorAll('[id^="janela_"]');
+    for (const j of janelas) {
+      if (makeFullScreen(j)) {
+        maximizePending = false;
+        return;
+      }
+    }
 
-    // Retenta
+    // Retenta em intervalo
     const iv = setInterval(() => {
       attempts++;
-      if (tryAllStrategies() || attempts >= MAX_ATTEMPTS) {
-        clearInterval(iv);
-        if (attempts >= MAX_ATTEMPTS) {
-          console.warn('[IPM] ⚠️ Esgotadas tentativas de maximizar');
+      const janelas = document.querySelectorAll('[id^="janela_"]');
+      for (const j of janelas) {
+        if (makeFullScreen(j)) {
+          maximizePending = false;
+          clearInterval(iv);
+          return;
         }
+      }
+      if (attempts >= MAX_ATTEMPTS) {
+        clearInterval(iv);
+        console.warn('[IPM] ⚠️ Esgotadas tentativas');
       }
     }, 500);
   }
 
+  // MutationObserver
   const observer = new MutationObserver((mutations) => {
     if (!maximizePending) return;
-
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
