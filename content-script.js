@@ -38,27 +38,24 @@
   function tryMaximize() {
     if (!maximizePending) return false;
 
-    // Acha a janela pelo prefixo do ID (não importa o número)
-    const janela = document.querySelector('[id^="janela_"]');
-    if (!janela) {
-      console.log('[IPM] ⏳ Aguardando janela aparecer...');
-      return false;
-    }
+    // Busca o input de maximizar DIRETAMENTE (sem depender do ID da janela)
+    // Seletor confirmado: div.area_total_janela header aside span:nth-child(2) input
+    const maximizeInput = document.querySelector(
+      'div.area_total_janela header aside span:nth-child(2) input'
+    );
 
-    // Procura o input de maximizar DENTRO da janela
-    const maximizeInput = janela.querySelector(MAXIMIZE_SELECTOR);
     if (!maximizeInput) {
-      console.log('[IPM] ⏳ Input de maximizar não encontrado ainda...');
+      console.log('[IPM] ⏳ Input de maximizar não encontrado...');
       return false;
     }
 
     // Verifica se está visível
     if (maximizeInput.offsetWidth === 0 || maximizeInput.offsetHeight === 0) {
-      console.log('[IPM] ⏳ Input não está visível ainda...');
+      console.log('[IPM] ⏳ Input visível? offsetWidth=' + maximizeInput.offsetWidth);
       return false;
     }
 
-    // CLICA! (seletor confirmado pelo usuário)
+    // CLICA!
     maximizeInput.click();
     console.log('[IPM] ✅ Janela maximizada!');
     maximizePending = false;
